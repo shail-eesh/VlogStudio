@@ -199,18 +199,28 @@ class Project:
         log(f"done in {(time.time() - t0) / 60:.1f} min", level="ok")
         return outs
 
+    def free_llm_memory(self):
+        """Unload the local model before rendering so the GPU encoder has room (the model stays
+        loaded otherwise, and on an 8 GB card several 4K NVENC encodes then run out of memory)."""
+        lc = self.cfg["llm"]
+        if lc["enabled"] and lc.get("unload_before_render", True):
+            self.llm().unload()
+
     def render_preview(self):
         plan = self.plan or self.make_plan()
+        self.free_llm_memory()
         return rd.render_preview(self.cfg, self.scan(), self.analysis, plan)
 
     def render_final(self):
         plan = self.plan or self.make_plan()
+        self.free_llm_memory()
         outs = rd.render_final(self.cfg, self.scan(), self.analysis, plan)
         if self.cfg["output"].get("export_graded_clips"):
             rd.export_graded_clips(self.cfg, self.scan(), self.analysis)
         return outs
 
     def export_graded(self):
+        self.free_llm_memory()
         return rd.export_graded_clips(self.cfg, self.scan(), self.analyze())
 
     def export_luts(self):

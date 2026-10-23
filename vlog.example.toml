@@ -46,6 +46,7 @@ tool_mode   = "auto"        # agent: native | json | auto
 json_mode   = true          # ask the server for strict JSON output when supported
 max_image_px = 1344         # images sent to the model are downscaled to this
 images_first = true         # put images before the text in prompts (recommended for Gemma 4, Qwen-VL)
+unload_before_render = true # Ollama: free the model's GPU memory before rendering (it reloads when needed)
 use_for     = ["orientation", "captions", "storyboard", "titles"]
 
 # ── Colour ────────────────────────────────────────────────────────────────────

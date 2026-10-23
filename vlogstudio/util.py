@@ -18,8 +18,18 @@ SINKS = []                  # callables receiving every log line (the app UI sub
 CANCEL = threading.Event()  # set by the UI's Cancel button; running ffmpeg processes are stopped
 
 
-class Cancelled(RuntimeError):
-    pass
+class Cancelled(BaseException):
+    """Raised when the user presses Cancel.
+
+    A BaseException (like KeyboardInterrupt), so the `except Exception` handlers that skip an
+    unreadable file or keep the agent loop alive let it through and the whole job stops.
+    """
+
+
+def check_cancel():
+    """Stop here if the user pressed Cancel. Call it in long loops that don't run ffmpeg."""
+    if CANCEL.is_set():
+        raise Cancelled("cancelled")
 
 
 def log(msg, *, level="info"):
@@ -46,8 +56,7 @@ def die(msg, code=1):
 def run(cmd, *, check=True, capture=False, quiet=False, cwd=None):
     """Run a command list (cancellable). Returns CompletedProcess."""
     debug("$ " + " ".join(str(c) for c in cmd))
-    if CANCEL.is_set():
-        raise Cancelled("cancelled")
+    check_cancel()
     pipe = subprocess.PIPE if (capture or quiet or sys.stdout is None) else None
     p = subprocess.Popen([str(c) for c in cmd], stdout=pipe, stderr=pipe, text=True, encoding="utf-8",
                          errors="replace", cwd=cwd, creationflags=_NO_WINDOW)
@@ -156,11 +165,19 @@ def save_json(path, obj):
 
 
 def pmap(fn, items, workers=4):
+    """Parallel map. Stops early on Cancel: items not started yet are dropped."""
     items = list(items)
+
+    def one(x):
+        check_cancel()
+        return fn(x)
     if workers <= 1 or len(items) <= 1:
-        return [fn(x) for x in items]
-    with ThreadPoolExecutor(workers) as ex:
-        return list(ex.map(fn, items))
+        return [one(x) for x in items]
+    ex = ThreadPoolExecutor(workers)
+    try:
+        return list(ex.map(one, items))
+    finally:
+        ex.shutdown(wait=True, cancel_futures=True)
 
 
 def fmt_time(t):

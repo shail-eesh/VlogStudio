@@ -40,6 +40,7 @@ def _images(messages):
 class State:
     log_path = "requests.jsonl"
     native_tools = True
+    unloads = 0  # Ollama-style unload requests (keep_alive = 0)
     lock = threading.Lock()
 
 
@@ -112,6 +113,10 @@ class H(BaseHTTPRequestHandler):
 
     def do_POST(self):
         req = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        if self.path == "/api/generate":  # Ollama's native API: the app unloads the model before rendering
+            with State.lock:
+                State.unloads += 1
+            return self._send(200, {"model": req.get("model"), "done": True, "done_reason": "unload"})
         with State.lock:
             with open(State.log_path, "a") as f:
                 f.write(json.dumps({"path": self.path, "model": req.get("model"), "n_messages": len(req["messages"]),

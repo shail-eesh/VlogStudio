@@ -7,7 +7,7 @@ from datetime import datetime
 
 from PIL import Image, ImageOps
 
-from .util import ffprobe_json, have, log, pmap, run
+from .util import check_cancel, ffprobe_json, have, log, pmap, run
 
 try:  # HEIC/HEIF photos on Windows/Linux (and macOS) without Apple's sips
     from pillow_heif import register_heif_opener
@@ -160,6 +160,7 @@ def scan(cfg):
     out_root = os.path.abspath(cfg.output_folder)
     files = []
     for root, dirs, names in os.walk(folder):
+        check_cancel()
         dirs[:] = [d for d in dirs if d not in SKIP_DIRS and not d.startswith(".")
                    and not os.path.abspath(os.path.join(root, d)).startswith(out_root)
                    and "Output" not in d]
