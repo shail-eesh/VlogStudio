@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vlog Studio</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <div class="brand"><span class="logo">▶</span><div><b>Vlog Studio</b><small>local · private · offline</small></div></div>
+    <div class="proj">
+      <label>Project</label>
+      <select id="projSel"></select>
+      <button class="ghost small" id="newProj">＋ New project from a folder…</button>
+    </div>
+    <nav id="nav"></nav>
+    <div class="side-foot">
+      <button class="ghost small" id="toggleLog">Show log</button>
+      <button class="ghost small danger" id="quitBtn">Quit app</button>
+    </div>
+  </aside>
+  <main>
+    <header id="jobbar" class="idle">
+      <div class="jobtxt"><span class="dot"></span><span id="jobTitle">Ready</span><span id="jobLine" class="muted"></span></div>
+      <div class="jobactions"><span id="saved" class="muted"></span><button id="cancelBtn" class="ghost small" hidden>Cancel</button></div>
+    </header>
+    <section id="page"></section>
+    <section id="logpane" hidden><div class="loghead"><b>Activity log</b><button class="ghost small" id="closeLog">Close</button></div><pre id="log"></pre></section>
+  </main>
+</div>
+<div id="modal" hidden><div class="modal-card"><button class="ghost close" id="modalClose">✕</button><div id="modalBody"></div></div></div>
+<div id="toasts"></div>
+<script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+#!/bin/zsh
+# Vlog Studio launcher: ./vlog <command>   (run ./setup.sh once first)
+HERE=${0:A:h}
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"   # Finder-launched apps don't get your shell PATH
+PY="$HERE/.venv/bin/python"
+[[ -x "$PY" ]] || { echo "Run $HERE/setup.sh first"; exit 1; }
+cd "${VLOG_CWD:-$PWD}"
+exec "$PY" -c "import sys; sys.path.insert(0, '$HERE'); from vlogstudio.cli import main; main()" "$@"

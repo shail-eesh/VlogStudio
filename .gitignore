@@ -1,0 +1,16 @@
+# local environment & caches
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+vlogstudio_app.log
+
+# your own settings and projects (paths, GPS places, clip names) — never committed
+vlog.toml
+vlog.toml.bak
+projects/
+
+# outputs
+Vlog_Studio_Output/
+*.mp4
+*.mov

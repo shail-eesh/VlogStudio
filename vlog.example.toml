@@ -1,0 +1,133 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Vlog Studio configuration  (paths are relative to this file)
+#  Everything runs locally. The AI model is optional: with [llm] enabled = false
+#  the tool makes all decisions automatically.
+# ─────────────────────────────────────────────────────────────────────────────
+
+[project]
+name            = "My Trip"
+style           = "travel"   # travel | wedding_event | family | event_recap | real_estate | product
+                             # (a preset of look/music/pacing/text defaults; your settings below still win)
+pacing          = "viral"    # viral (0.5–5 s cuts) | cinematic (1–6 s) | documentary (up to ~10 s shots)
+media_folder    = ".."                      # folder with your videos + photos (searched recursively)
+output_folder   = "../Vlog_Studio_Output"   # renders, LUTs, cache (work/)
+include_images  = true                      # use JPG/PNG/HEIC photos too
+exclude         = []                        # glob patterns, e.g. ["*_proxy.mov", "screenshots/*"]
+target_duration = 68                        # seconds (snapped to whole music bars)
+
+# On-screen text. Leave empty for automatic text (or let the local model write it).
+title        = ""                # main title, e.g. "NEW YORK"
+title_script = "welcome to"      # small script line above the title
+subtitle     = ""                # e.g. "CITY · OCTOBER 2024" (auto: month + year)
+hook         = ""                # e.g. "48 HOURS IN NYC" (empty = hook_template)
+hook_template = "{span} IN {title}"   # {span} = "48 HOURS"/"5 DAYS", {title}, {days}, {month}
+hook_sub     = ""                # e.g. "POV: YOUR FIRST TRIP TO THE BIG APPLE"
+end_line     = "you were a vibe."
+end_sub      = "SEE YOU AGAIN SOON"
+chapter_cards = true             # "DAY 01 / DAY 02" for multi-day trips
+location_tags = true             # pin + place name at the first shot of each new place
+location_sub  = ""               # small line under location tags, e.g. "NEW YORK, NY"
+
+# ── Local AI model (OpenAI-compatible server on this Mac) ─────────────────────
+#  Ollama:     base_url = "http://localhost:11434/v1"   model = "qwen2.5vl:7b" / "gemma3:12b" / "gemma4…"
+#  LM Studio:  base_url = "http://localhost:1234/v1"    model = "<name shown in LM Studio>"
+#  llama.cpp:  base_url = "http://localhost:8080/v1"    (llama-server --jinja for tool calling)
+#  MLX:        base_url = "http://localhost:8080/v1"    (mlx_lm.server / mlx_vlm.server)
+[llm]
+enabled     = false
+base_url    = "http://localhost:11434/v1"
+model       = "qwen2.5vl:7b"
+vision      = true          # model can see images (needed for captions / orientation check)
+api_key     = ""            # local servers usually need none
+temperature = 0.4
+max_tokens  = 4096
+timeout     = 600           # seconds per request (local models can be slow)
+tool_mode   = "auto"        # agent: native | json | auto
+json_mode   = true          # ask the server for strict JSON output when supported
+max_image_px = 1344         # images sent to the model are downscaled to this
+use_for     = ["orientation", "captions", "storyboard", "titles"]
+
+# ── Colour ────────────────────────────────────────────────────────────────────
+[look]
+preset          = "golden_day"   # golden_day | teal_orange | natural | vivid_pop | moody_film
+strength        = 1.0            # 0 … 1.5  creative intensity
+auto_exposure   = true
+target_exposure = 0.17           # 0.14 darker … 0.22 brighter
+min_stops       = -1.5
+max_stops       = 2.2
+auto_white_balance = true
+lut_size        = 33             # per-shot LUT size for rendering (master LUT export is 65)
+# [look.overrides]               # fine-tune any look parameter
+# contrast = 0.30
+# vibrance = 0.40
+# warm     = [0.03, 0.012, -0.03]
+# matte    = 0.0
+
+[orientation]
+mode          = "auto"    # auto (detect, fixes wrong rotation flags) | honor_flag | ignore_flag
+portrait_fill = "blur"    # vertical clips/photos: blur (blurred background) | crop
+confidence    = 0.06      # how sure auto mode must be to override the group consensus
+
+[analysis]
+sample_interval = 1.5     # seconds between analysed frames
+skip_start      = 2.0     # ignore the first seconds of clips (phone auto-exposure settling)
+workers         = 6       # parallel decoders (≈ CPU cores)
+# Smart moments (best with a vision model): long clips are shown to the model in chunks so it sees a
+# frame every ~1.5 s; its moment lengths decide which slot a moment goes to, and its "avoid" ranges
+# (shaky, blurry, lens covered…) are never used. Without a model, frame scores give the moment lengths.
+smart_moments        = false
+long_clip_chunk      = 24     # seconds of footage per contact sheet for long clips
+max_moments_per_clip = 4      # how many different moments one clip may contribute
+
+# ── Music ─────────────────────────────────────────────────────────────────────
+[music]
+mode    = "generate"        # generate (original royalty-free track) | file
+file    = ""                # your own track when mode = "file", e.g. "music/song.mp3"
+preset  = "tropical_house"  # tropical_house | upbeat_pop | cinematic_pop | chill_lofi
+bpm     = 0                 # 0 = preset default
+key     = ""                # e.g. "A", "F#" ("" = preset default)
+seed    = 7                 # change for a different melody
+ambient_level = 1.0         # natural sound from clips under the music (0 = off)
+
+# ── Output ────────────────────────────────────────────────────────────────────
+[output]
+resolution         = "3840x2160"   # 1920x1080 renders much faster
+preview_resolution = "1280x720"
+fps                = 24
+letterbox          = 2.39          # cinematic bars; 0 = none
+grain              = 3             # film grain strength (0 = off)
+vignette           = true
+flashes            = true          # white flash on music drops
+crf                = 17            # x264 quality (lower = better/larger)
+x264_preset        = "medium"
+make_1080p         = true          # extra 1080p file when rendering 4K
+export_graded_clips = false        # also write graded copies of every clip
+render_workers     = 3
+basename           = "Travel_Vlog"
+encoder            = "auto"   # auto = graphics card when available (NVIDIA NVENC / Apple) | gpu | cpu
+hw_decode          = "auto"   # GPU decoding of phone H.264/HEVC on NVIDIA (ProRes always decodes on the CPU)
+
+[titles]
+# macOS fonts below; on Windows/Linux missing fonts fall back automatically (Segoe UI Black, Segoe Script…)
+font_display = "/System/Library/Fonts/Supplemental/Futura.ttc:2"      # Futura Bold
+font_light   = "/System/Library/Fonts/Supplemental/Futura.ttc:0"      # Futura Medium
+font_heavy   = "/System/Library/Fonts/Avenir Next.ttc:8"              # Avenir Next Heavy
+font_medium  = "/System/Library/Fonts/Avenir Next.ttc:2"              # Avenir Next Demi Bold
+font_script  = "/System/Library/Fonts/Supplemental/SnellRoundhand.ttc:1"
+color_main   = [255, 246, 228]
+color_accent = [255, 214, 140]
+
+# ── Places: GPS → location tag names (offline, no internet needed) ────────────
+# [[places]]
+# name = "LIBERTY ISLAND"
+# lat = 40.6892
+# lon = -74.0445
+# radius_m = 700
+
+# ── Per-clip fixes (id = file name without extension) ─────────────────────────
+# [overrides."IMG_1234"]
+# rotate  = 180          # absolute clockwise rotation from stored pixels
+# stops   = -0.5         # exposure
+# wb      = [0.9, 1.0, 1.1]
+# exclude = true
+# profile = "apple_log"  # apple_log | hlg | pq | bt709 | srgb
