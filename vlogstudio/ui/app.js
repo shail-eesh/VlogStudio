@@ -473,7 +473,7 @@ function pAI() {
       h("div", { class: "card" }, h("h2", {}, "Model"),
         ...fields("llm.enabled", "llm.base_url", "llm.model", "llm.vision", "llm.use_for"),
         h("div", { class: "row", style: "margin:10px 0" }, h("button", { onclick: test }, "Test connection & list models"), status),
-        h("h3", {}, "Advanced"), ...fields("llm.temperature", "llm.max_tokens", "llm.timeout", "llm.tool_mode", "llm.json_mode", "llm.api_key")),
+        h("h3", {}, "Advanced"), ...fields("llm.temperature", "llm.max_tokens", "llm.timeout", "llm.tool_mode", "llm.json_mode", "llm.images_first", "llm.api_key")),
       h("div", {},
         h("div", { class: "card" }, h("h2", {}, "Smart moments"),
           ...fields("analysis.smart_moments", "analysis.long_clip_chunk", "analysis.max_moments_per_clip"),

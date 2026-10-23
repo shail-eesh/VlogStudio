@@ -38,6 +38,21 @@ class TestJSON(unittest.TestCase):
             extract_json("no json here")
 
 
+class TestLLMMessages(unittest.TestCase):
+    def test_images_before_text(self):
+        from PIL import Image
+        from vlogstudio.llm import LLM
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "x.jpg")
+            Image.new("RGB", (64, 36), (10, 20, 30)).save(p)
+            cfg = config.load(os.path.join(ROOT, "vlog.example.toml"))
+            kinds = [part["type"] for part in LLM(cfg).user("describe", [p, p])["content"]]
+            self.assertEqual(kinds, ["image_url", "image_url", "text"])
+            cfg["llm"]["images_first"] = False
+            kinds = [part["type"] for part in LLM(cfg).user("describe", [p])["content"]]
+            self.assertEqual(kinds, ["text", "image_url"])
+
+
 class TestColor(unittest.TestCase):
     def test_applelog_mid_grey(self):
         # Apple Log encodes 18% grey at ~0.488

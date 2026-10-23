@@ -123,6 +123,7 @@ field("llm.max_tokens", "Max reply tokens", "number", min=512, max=32768, step=2
 field("llm.timeout", "Timeout per request (s)", "number", min=30, max=3600, step=10)
 field("llm.tool_mode", "Agent tool calling", "select", options=["auto", "native", "json"])
 field("llm.json_mode", "Ask server for strict JSON", "bool")
+field("llm.images_first", "Images before text in prompts", "bool", "recommended for Gemma 4 and Qwen-VL")
 
 
 # ---------------------------------------------------------------- state

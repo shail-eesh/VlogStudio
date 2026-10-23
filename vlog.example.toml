@@ -45,6 +45,7 @@ timeout     = 600           # seconds per request (local models can be slow)
 tool_mode   = "auto"        # agent: native | json | auto
 json_mode   = true          # ask the server for strict JSON output when supported
 max_image_px = 1344         # images sent to the model are downscaled to this
+images_first = true         # put images before the text in prompts (recommended for Gemma 4, Qwen-VL)
 use_for     = ["orientation", "captions", "storyboard", "titles"]
 
 # ── Colour ────────────────────────────────────────────────────────────────────

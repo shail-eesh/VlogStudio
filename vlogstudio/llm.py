@@ -35,6 +35,7 @@ class LLM:
         self.json_mode = bool(c.get("json_mode", True))
         self.max_px = int(c.get("max_image_px", 1344))
         self.tool_mode = c.get("tool_mode", "auto")
+        self.images_first = bool(c.get("images_first", True))
         self.calls = 0
 
     # ---------- transport ----------
@@ -75,7 +76,10 @@ class LLM:
 
     def user(self, text, images=()):
         if images and self.vision:
-            return {"role": "user", "content": [{"type": "text", "text": text}] + [self.image_part(p) for p in images]}
+            # images before the text: recommended for Gemma 4 and the usual layout for Qwen-VL / LLaVA
+            imgs = [self.image_part(p) for p in images]
+            txt = [{"type": "text", "text": text}]
+            return {"role": "user", "content": imgs + txt if self.images_first else txt + imgs}
         return {"role": "user", "content": text}
 
     def chat(self, messages, tools=None, json_out=False, temperature=None):

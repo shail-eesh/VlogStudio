@@ -126,9 +126,9 @@ In the app, open **AI assistant**, switch on *Use a local AI model*, press **Tes
 and pick the model. Or set `[llm] enabled = true` in `vlog.toml`.
 
 Which models fit your GPU:
-- **RTX 4070 laptop (8 GB VRAM):** `qwen2.5vl:7b` (recommended), `gemma3:4b`, `minicpm-v`.
+- **RTX 4070 laptop (8 GB VRAM):** `gemma4:e4b` or `qwen2.5vl:7b` (recommended), `gemma3:4b`, `minicpm-v`.
   Avoid 12B+ vision models, which spill into system RAM and get slow.
-- **RTX 4070 desktop (12 GB VRAM):** also `gemma3:12b`, or a 12B Gemma 4 vision build.
+- **RTX 4070 desktop (12 GB VRAM):** also `gemma4:12b` or `gemma3:12b` (better storyboards and agent).
 - **Apple Silicon:** 7–8B models on 16 GB; 12B+ on 32 GB.
 
 Give the model room for the storyboard step by setting the Ollama context length to about 16k:

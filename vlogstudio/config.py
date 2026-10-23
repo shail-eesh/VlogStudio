@@ -41,6 +41,7 @@ DEFAULTS = {
         "tool_mode": "auto",
         "json_mode": True,
         "max_image_px": 1344,
+        "images_first": True,
         "use_for": ["orientation", "captions", "storyboard", "titles"],
     },
     "look": {
