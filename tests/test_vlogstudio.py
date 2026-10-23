@@ -226,7 +226,8 @@ class TestPortability(unittest.TestCase):
         from vlogstudio import render
         cfg = config.load(os.path.join(ROOT, "vlog.example.toml"))
         cfg.root = tempfile.mkdtemp()
-        cfg["project"]["output_folder"] = os.path.join(cfg.root, "out dir: it's")
+        # spaces, quotes, commas, brackets (and a colon where the OS allows it) must not break ffmpeg filters
+        cfg["project"]["output_folder"] = os.path.join(cfg.root, "out dir, it's (v2)" + ("" if os.name == "nt" else ": x"))
         p = render.lut_for(cfg, {"id": "My clip, v2 (final)", "profile": "bt709"}, {"stops": 0, "wb": [1, 1, 1]}, size=5)
         self.assertRegex(os.path.basename(p), r"^lut_[0-9a-f]+\.cube$")
         shutil.rmtree(cfg.root, ignore_errors=True)
