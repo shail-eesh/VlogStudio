@@ -9,13 +9,14 @@ import base64
 import io
 import json
 import re
+import threading
 import time
 import urllib.error
 import urllib.request
 
 from PIL import Image
 
-from .util import log
+from .util import check_cancel, log
 
 
 class LLMError(RuntimeError):
@@ -40,6 +41,25 @@ class LLM:
 
     # ---------- transport ----------
     def _post(self, path, payload):
+        """POST in a background thread so Cancel works while waiting for a slow model reply.
+        On Cancel the request is abandoned; the reply, when it comes, is ignored."""
+        box = {}
+
+        def work():
+            try:
+                box["r"] = self._post_blocking(path, payload)
+            except BaseException as e:
+                box["e"] = e
+        t = threading.Thread(target=work, daemon=True)
+        t.start()
+        while t.is_alive():
+            check_cancel()
+            t.join(0.25)
+        if "e" in box:
+            raise box["e"]
+        return box["r"]
+
+    def _post_blocking(self, path, payload):
         req = urllib.request.Request(self.base + path, data=json.dumps(payload).encode(),
                                      headers={"Content-Type": "application/json",
                                               **({"Authorization": f"Bearer {self.key}"} if self.key else {})})
@@ -58,6 +78,20 @@ class LLM:
                                      headers={"Authorization": f"Bearer {self.key}"} if self.key else {})
         with urllib.request.urlopen(req, timeout=15) as r:
             return json.loads(r.read().decode())
+
+    def unload(self):
+        """Ask Ollama to drop the model from (GPU) memory now; it reloads on the next request.
+        Other servers have no such API: nothing happens. Never raises."""
+        root = self.base[:-3] if self.base.endswith("/v1") else self.base
+        req = urllib.request.Request(root + "/api/generate", headers={"Content-Type": "application/json"},
+                                     data=json.dumps({"model": self.model, "keep_alive": 0}).encode())
+        try:
+            with urllib.request.urlopen(req, timeout=20) as r:
+                r.read()
+            log(f"freed GPU memory: unloaded {self.model} until it is needed again")
+            return True
+        except Exception:
+            return False
 
     def list_models(self):
         try:

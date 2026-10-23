@@ -12,7 +12,7 @@ import time
 from . import tools as T
 from .creative import prompt
 from .llm import LLMError, extract_json
-from .util import log
+from .util import check_cancel, log
 
 JSON_PROTOCOL = """
 ## How to call tools
@@ -61,6 +61,7 @@ def run(proj, goal, max_steps=40):
     tools_schema = T.schemas()
     nudges = 0
     for step in range(1, max_steps + 1):
+        check_cancel()
         try:
             if mode == "native":
                 msg = llm.chat(messages, tools=tools_schema)
@@ -103,6 +104,7 @@ def run(proj, goal, max_steps=40):
         else:
             messages.append({"role": "assistant", "content": msg.get("content") or ""})
         for call_id, name, args in calls:
+            check_cancel()
             log(f"agent → {name}({json.dumps(args)[:160]})", level="step")
             t0 = time.time()
             res = T.call(proj, name, args)

@@ -124,6 +124,8 @@ field("llm.timeout", "Timeout per request (s)", "number", min=30, max=3600, step
 field("llm.tool_mode", "Agent tool calling", "select", options=["auto", "native", "json"])
 field("llm.json_mode", "Ask server for strict JSON", "bool")
 field("llm.images_first", "Images before text in prompts", "bool", "recommended for Gemma 4 and Qwen-VL")
+field("llm.unload_before_render", "Free the model's GPU memory before rendering", "bool",
+      "Ollama only; the GPU encoder needs it on 8 GB cards. The model reloads by itself when needed")
 
 
 # ---------------------------------------------------------------- state
@@ -540,7 +542,8 @@ class Handler(BaseHTTPRequestHandler):
                 app.start(b["action"], b.get("args") or {})
                 return self._json({"ok": True})
             if u.path == "/api/cancel":
-                util.CANCEL.set()
+                if app.job["running"]:  # a stray click with nothing running must not affect the next job
+                    util.CANCEL.set()
                 return self._json({"ok": True})
             if u.path == "/api/override":
                 if app.job["running"]:

@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 
 from . import color
-from .util import log, pmap, run, save_json
+from .util import check_cancel, log, pmap, run, save_json
 
 THUMB_W = 320
 
@@ -91,6 +91,7 @@ def analyze(cfg, media):
 
     results = {}
     for m in media:
+        check_cancel()
         frames = [(t, p) for t, p in per[m["id"]] if os.path.exists(p)]
         if not frames:
             results[m["id"]] = {"usable": False, "reason": "no frames decoded"}
@@ -209,6 +210,7 @@ def _score_frames(results):
 
 def _write_thumbs(cfg, media, results, look):
     for m in media:
+        check_cancel()
         r = results.get(m["id"])
         if not r or "frames" not in r:
             continue

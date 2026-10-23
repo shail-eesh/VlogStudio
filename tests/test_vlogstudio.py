@@ -302,9 +302,196 @@ class TestApp(unittest.TestCase):
     def test_state_and_file_rules(self):
         st = self.get("/api/state")
         self.assertFalse(st["job"]["running"])
+        from vlogstudio import util
+        self.post("/api/cancel", {})  # Cancel with nothing running is ignored
+        self.assertFalse(util.CANCEL.is_set())
         self.assertEqual(st["projects"][0]["name"], "App Test")
         with self.assertRaises(Exception):  # files outside the project's output folder are refused
             self.get("/file?path=" + "/etc/hosts")
+
+
+class TestCancel(unittest.TestCase):
+    """The app's Cancel button must stop every kind of job, not just running ffmpeg."""
+
+    def setUp(self):
+        from vlogstudio import util
+        self.util = util
+        util.CANCEL.clear()
+        self.tmp = tempfile.mkdtemp()
+
+    def tearDown(self):
+        self.util.CANCEL.clear()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_not_swallowed_by_except_exception(self):
+        try:
+            raise self.util.Cancelled("cancelled")
+        except Exception:
+            self.fail("Cancelled must not be caught by `except Exception`")
+        except self.util.Cancelled:
+            pass
+
+    def test_pmap_stops_early(self):
+        done = []
+
+        def fn(x):
+            if x == 3:
+                self.util.CANCEL.set()
+            done.append(x)
+        for workers in (1, 4):
+            done.clear()
+            self.util.CANCEL.clear()
+            with self.assertRaises(self.util.Cancelled):
+                self.util.pmap(fn, range(200), workers)
+            self.assertLess(len(done), 50, f"workers={workers}")
+
+    def test_scan_stops_instead_of_skipping_files(self):
+        from PIL import Image
+        from vlogstudio import media
+        os.makedirs(os.path.join(self.tmp, "media"))
+        for i in range(20):
+            Image.new("RGB", (64, 48), (i * 10, 80, 120)).save(os.path.join(self.tmp, "media", f"p{i:02d}.jpg"))
+        with open(os.path.join(self.tmp, "vlog.toml"), "w") as f:
+            f.write('[project]\nmedia_folder = "media"\noutput_folder = "out"\n')
+        cfg = config.load(os.path.join(self.tmp, "vlog.toml"))
+        real, calls = media.prepare_image, []
+
+        def prep(path, work):
+            calls.append(path)
+            if len(calls) == 2:
+                self.util.CANCEL.set()
+            return real(path, work)
+        media.prepare_image = prep
+        try:
+            with self.assertRaises(self.util.Cancelled):
+                media.scan(cfg)
+        finally:
+            media.prepare_image = real
+        self.assertLess(len(calls), 20)
+
+    def test_tool_errors_are_kept_but_cancel_propagates(self):
+        from vlogstudio import tools as T
+
+        @T.tool("_test_cancel", "test only")
+        def _t(proj):
+            raise self.util.Cancelled("cancelled")
+
+        @T.tool("_test_error", "test only")
+        def _e(proj):
+            raise ValueError("boom")
+        try:
+            self.assertTrue(T.call(None, "_test_error", {}).text.startswith("ERROR"))
+            with self.assertRaises(self.util.Cancelled):
+                T.call(None, "_test_cancel", {})
+        finally:
+            T.REGISTRY.pop("_test_cancel", None)
+            T.REGISTRY.pop("_test_error", None)
+
+    def test_agent_stops_before_next_tool(self):
+        from vlogstudio import agent
+        util, tmp = self.util, self.tmp
+
+        class FakeLLM:
+            tool_mode, vision, n = "native", False, 0
+
+            def chat(self, messages, **kw):
+                self.n += 1
+                if self.n == 2:
+                    util.CANCEL.set()  # user presses Cancel while the model is thinking
+                return {"content": "", "tool_calls": [{"id": f"c{self.n}", "function": {
+                    "name": "list_skills", "arguments": "{}"}}]}
+
+        class FakeProject:
+            def llm(self):
+                return FakeLLM()
+
+            def p(self, name):
+                return os.path.join(tmp, name)
+        real = agent._project_summary
+        agent._project_summary = lambda proj: "test"
+        try:
+            with self.assertRaises(util.Cancelled):
+                agent.run(FakeProject(), "make it", max_steps=10)
+        finally:
+            agent._project_summary = real
+        log = [json.loads(l) for l in _read(os.path.join(tmp, "agent_log.jsonl")).splitlines()]
+        self.assertEqual(len([e for e in log if "tool" in e]), 1)
+
+    def test_waiting_for_model_reply_is_cancellable(self):
+        import threading
+        import time
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+        from vlogstudio.llm import LLM
+
+        class Slow(BaseHTTPRequestHandler):
+            def do_POST(self):
+                time.sleep(5)
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{"choices": [{"message": {"content": "late"}}]}')
+
+            def log_message(self, *a):
+                pass
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), Slow)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        llm = LLM({"llm": {"base_url": f"http://127.0.0.1:{httpd.server_address[1]}/v1", "model": "m"}})
+        threading.Timer(0.3, self.util.CANCEL.set).start()
+        t0 = time.time()
+        try:
+            with self.assertRaises(self.util.Cancelled):
+                llm.chat([{"role": "user", "content": "hi"}])
+            self.assertLess(time.time() - t0, 2.0)
+        finally:
+            httpd.shutdown()
+
+
+class TestFreeGPUBeforeRender(unittest.TestCase):
+    """Ollama keeps the model in GPU memory; it must be unloaded before NVENC rendering."""
+
+    def test_unload_request_goes_to_ollama_native_api(self):
+        import threading
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+        from vlogstudio.llm import LLM
+        got = []
+
+        class Ollama(BaseHTTPRequestHandler):
+            def do_POST(self):
+                got.append((self.path, json.loads(self.rfile.read(int(self.headers["Content-Length"])))))
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"{}")
+
+            def log_message(self, *a):
+                pass
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), Ollama)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        try:
+            llm = LLM({"llm": {"base_url": f"http://127.0.0.1:{httpd.server_address[1]}/v1", "model": "gemma4:e4b"}})
+            self.assertTrue(llm.unload())
+        finally:
+            httpd.shutdown()
+        self.assertEqual(got, [("/api/generate", {"model": "gemma4:e4b", "keep_alive": 0})])
+
+    def test_unload_never_fails_without_ollama(self):
+        from vlogstudio.llm import LLM
+        self.assertFalse(LLM({"llm": {"base_url": "http://127.0.0.1:9/v1", "model": "m"}}).unload())
+
+    def test_render_steps_free_the_model_only_when_enabled(self):
+        from vlogstudio.project import Project
+        tmp = tempfile.mkdtemp()
+        try:
+            cfg_path = os.path.join(tmp, "vlog.toml")
+            for enabled, unload, expect in ((True, True, 1), (True, False, 0), (False, True, 0)):
+                with open(cfg_path, "w") as f:
+                    f.write(f'[project]\nmedia_folder = "."\noutput_folder = "out"\n'
+                            f'[llm]\nenabled = {str(enabled).lower()}\nunload_before_render = {str(unload).lower()}\n')
+                proj = Project(config.load(cfg_path))
+                calls = []
+                proj._llm = type("FakeLLM", (), {"unload": lambda self: calls.append(1)})()
+                proj.free_llm_memory()
+                self.assertEqual(len(calls), expect, (enabled, unload))
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 @unittest.skipUnless(os.environ.get("VLOG_INTEGRATION"), "set VLOG_INTEGRATION=1 for the full pipeline test")
@@ -385,6 +572,8 @@ x264_preset = "ultrafast"
         self.assertTrue(any(r["images"] > 0 for r in self.reqs()), "vision requests must carry images")
         kinds = {m["kind"] for m in json.loads(_read(os.path.join(self.tmp, "out", "work", "media.json")))}
         self.assertEqual(kinds, {"video", "image"})
+        from mock_llm_server import State
+        self.assertGreaterEqual(State.unloads, 1, "the model must be unloaded before rendering")
 
     def test_2_agent_native_tools(self):
         self.vlog("agent", "make the video", "--max-steps", "15")
